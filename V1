@@ -1,0 +1,261 @@
+
+import time
+import board
+from digitalio import DigitalInOut, Direction, Pull
+import analogio
+import pwmio
+import rotaryio
+import usb_hid
+from adafruit_hid.keyboard import Keyboard
+from adafruit_hid.keycode import Keycode
+from adafruit_hid.consumer_control import ConsumerControl
+# from adafruit_hid.consumer_control_code import ConsumerControlCode
+
+print("---Pico Pad Keyboard---")
+
+led = DigitalInOut(board.LED)
+led.direction = Direction.OUTPUT
+led.value = True
+
+kbd = Keyboard(usb_hid.devices)
+cc = ConsumerControl(usb_hid.devices)
+
+# list of pins to use for misc buttons
+pins = (
+    board.GP0,
+    board.GP1,
+    board.GP2,
+    board.GP3,
+    board.GP4,
+    board.GP5,
+    board.GP6,
+    board.GP7,
+    board.GP8,
+    board.GP9,
+    board.GP10,
+    board.GP11,
+)
+
+# list of all pins used for encoder
+encoderPins = (
+    board.GP12,
+    board.GP13,
+    board.GP14,
+)
+
+# list of all pins used for command shortcuts ("take", "drop", etc.)
+commandPins = (
+    board.GP15,
+    board.GP16,
+    board.GP17,
+    board.GP18,
+    board.GP19
+)
+
+# list of all pins used for the charlieplexedLEDs
+ledPins = (
+    board.GP20,
+    board.GP21,
+    board.GP22,
+    board.A0,
+    board.A1,
+    board.A2,
+)
+
+MEDIA = 1
+KEY = 2
+
+keymapNumbers = {
+    (0): (KEY, [Keycode.ONE]),
+    (1): (KEY, [Keycode.TWO]),
+    (2): (KEY, [Keycode.THREE]),
+    (3): (KEY, [Keycode.FOUR]),
+    (4): (KEY, [Keycode.FIVE]),
+    (5): (KEY, [Keycode.SIX]),
+    (6): (KEY, [Keycode.SEVEN]),
+    (7): (KEY, [Keycode.EIGHT]),
+    (8): (KEY, [Keycode.NINE]),
+    (9): (KEY, [Keycode.ZERO]),
+}
+
+# Space, BAckspace, Enter, N S O W, TAke, drop, inventory, use
+keymapCommands = {
+    (0): (KEY, (Keycode.N, Keycode.O, Keycode.R, Keycode.T, Keycode.H)),
+    (1): (KEY, (Keycode.E, Keycode.A, Keycode.S, Keycode.T)),
+    (2): (KEY, (Keycode.S, Keycode.O, Keycode.U, Keycode.T, Keycode.H)),
+    (3): (KEY, (Keycode.W, Keycode.E, Keycode.S, Keycode.T)),
+    (4): (KEY, (Keycode.T, Keycode.A, Keycode.K, Keycode.E)),
+    (5): (KEY, (Keycode.D, Keycode.R, Keycode.O, Keycode.P)),
+    (6): (KEY, (Keycode.I, Keycode.N, Keycode.V, Keycode.E, Keycode.N, Keycode.T, Keycode.O, Keycode.R, Keycode.Y)),
+    (7): (KEY, (Keycode.U, Keycode.S, Keycode.E)),
+    (8): (KEY, (Keycode.SPACE)),
+    (9): (KEY, (Keycode.BACKSPACE)),
+    (10): (KEY, (Keycode.ENTER)),
+}
+
+counter = 1
+
+lastPosition = None
+encoder = rotaryio.IncrementalEncoder(board.GP13, board.GP14, 4)
+
+encoderSwitch = DigitalInOut(board.GP12)
+encoderSwitch.direction = Direction.INPUT
+encoderSwitch.pull = Pull.UP
+
+leds = []
+for i in range(len(ledPins)):
+    led = DigitalInOut(ledPins[i])
+    led.direction = Direction.OUTPUT
+    led.value = False
+    leds.append(led)
+
+commandSwitches = []
+for i in range(len(commandPins)):
+    switch = DigitalInOut(commandPins[i])
+    switch.direction = Direction.INPUT
+    switch.pull = Pull.DOWN
+    commandSwitches.append(switch)
+
+switches = []
+for i in range(len(pins)):
+    switch = DigitalInOut(pins[i])
+    switch.direction = Direction.INPUT
+    switch.pull = Pull.UP
+    switches.append(switch)
+
+switch_state = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+switch_state_numbers = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+def checkCommandPins(commandPins):
+    pinString = ""
+
+    # I felt it'S be easier to read to convert it into a code
+    for pin in range(len(commandPins)):
+        if commandSwitches[pin].value:
+            pinString += "1"
+        else:
+            pinString += "0"
+
+    value = 0;
+
+    if pinString == "00000":
+        return
+    elif pinString == "11000":
+        value = 0
+    elif pinString == "10100":
+        value = 1
+    elif pinString == "10010":
+        value = 2
+    elif pinString == "10001":
+        value = 3
+    elif pinString == "01100":
+        value = 4
+    elif pinString == "01010":
+        value = 5
+    elif pinString == "01001":
+        value = 6
+    elif pinString == "00110":
+        value = 7
+    elif pinString == "00101":
+        value = 8
+    elif pinString == "00011":
+        value = 9
+    else:
+        return
+
+    try:
+        if keymapNumbers[value][0] == KEY:
+            kbd.press(*keymapNumbers[value][1])
+        else:
+            cc.send(keymapNumbers[value][1])
+    except ValueError:  # deals w six key limit
+        pass
+
+    time.sleep(0.5)
+
+    kbd.release(*keymapNumbers[value][1])
+
+
+def changeLedPins(leds, counter):
+    lowPin = 0
+    highPin = 0
+
+    counter = 6
+
+    if(counter < 6):
+        lowPin = 0
+    elif counter < 11:
+        lowPin = 1
+    elif counter < 16:
+        lowPin = 2
+    elif counter < 21:
+        lowPin = 3
+    elif counter < 26:
+        lowPin = 4
+    else:
+        lowPin = 5
+
+    if lowPin == 0:
+        highPin = counter
+    else:
+        if counter < (lowPin*5)+lowPin+1:
+            highPin = counter-(lowPin*5)-1
+        else:
+            highPin = counter-(lowPin*5)
+
+    ledLow = leds[lowPin]
+    if ledLow.value is not False:
+        ledLow.value = False
+
+    ledHigh = leds[highPin]
+    if highPin is not True:
+        ledHigh.value = True
+
+while True:
+    position = encoder.position
+
+    if lastPosition is None or position != lastPosition:
+
+        if lastPosition is not None:
+            if position > lastPosition:
+                counter += 1
+                if counter > 26:
+                    counter = 1
+            else:
+                counter -= 1
+                if counter < 1:
+                    counter = 26
+
+    lastPosition = position
+
+    if not encoderSwitch.value:
+        print("Counter: " + str(counter))
+        time.sleep(0.2)
+
+    changeLedPins(leds, counter)
+
+    checkCommandPins(commandPins)
+
+    for button in range(12):
+        if switch_state[button] == 0:
+            if not switches[button].value:
+                try:
+                    if keymapCommands[button][0] == KEY:
+                        kbd.press(*keymapCommands[button][1])
+                    else:
+                        cc.send(keymapCommands[button][1])
+                except ValueError:  # deals w six key limit
+                    pass
+                switch_state[button] = 1
+
+        if switch_state[button] == 1:
+            if switches[button].value:
+                try:
+                    if keymapCommands[button][0] == KEY:
+                        kbd.release(*keymapCommands[button][1])
+
+                except ValueError:
+                    pass
+                switch_state[button] = 0
+
+    time.sleep(0.01)  # debounce
