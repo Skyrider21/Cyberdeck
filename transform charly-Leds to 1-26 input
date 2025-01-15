@@ -1,0 +1,78 @@
+import time
+import board
+from digitalio import DigitalInOut, Direction, Pull
+import analogio
+import pwmio
+import rotaryio
+import usb_hid
+from adafruit_hid.keyboard import Keyboard
+from adafruit_hid.keycode import Keycode
+from adafruit_hid.consumer_control import ConsumerControl
+# from adafruit_hid.consumer_control_code import ConsumerControlCode
+
+print("---Pico Pad Keyboard---")
+
+ledPins = (
+    board.GP0,
+    board.GP1,
+    board.GP2,
+    board.GP3,
+    board.GP4,
+    board.GP5,
+)
+
+LEDs = []
+
+
+
+
+def reset_LEDs():
+    LEDs.clear()
+    for i in range(len(ledPins)):
+        led = DigitalInOut(ledPins[i])
+        led.direction = Direction.INPUT
+        LEDs.append(led)
+
+def set_LED(low, high):
+    reset_LEDs()
+    LEDs[low].direction = Direction.OUTPUT
+    LEDs[low].value = 0
+    LEDs[high].direction = Direction.OUTPUT
+    LEDs[high].value = 1
+    
+def activate_single_LED(num):
+    num = int(num)
+    if num == 0 or num > 26:
+        print("Pick a number between 1 and 26 to activate a LED")
+    else:
+        
+        low = 0
+        high = 1
+        if num != 1:
+            for i in range(num -1):
+                high_old = high
+                high = low
+                low = high_old
+                
+                if i % 2 != 0:
+                    if high == 5:
+                        low += 1
+                        high = low +1
+                    else:
+                        high += 1
+                print("low: " + str(low) + " high:" + str(high))  
+           
+    set_LED(low,high)
+            
+
+
+
+activate_single_LED(26)
+
+
+time.sleep(0.01)
+
+
+
+
+
