@@ -1,0 +1,38 @@
+
+clk = digitalio.DigitalInOut(encoderPins[0])  # Replace D2 with your actual pin for CLK
+dt = digitalio.DigitalInOut(encoderPins[1])   # Replace D3 with your actual pin for DT
+clk.direction = digitalio.Direction.INPUT
+dt.direction = digitalio.Direction.INPUT
+clk.pull = digitalio.Pull.UP
+dt.pull = digitalio.Pull.UP
+
+# Initialize variables
+last_state_clk = clk.value
+counter = 1  # Start at 1, since the range is 1 to 26
+
+while True:
+    # Read the current state of the CLK pin
+    current_state_clk = clk.value
+    activate_single_LED(counter)
+    # Check if the state has changed
+    if current_state_clk != last_state_clk:
+        # If CLK has changed, check the state of DT
+        if dt.value != current_state_clk:
+            # If DT is different from CLK, it's a clockwise turn
+            if counter < 26:
+                counter += 1
+        else:
+            # If DT is the same as CLK, it's a counter-clockwise turn
+            if counter > 1:
+                counter -= 1
+
+        # Print the counter value
+        print(counter)  
+        
+
+    # Update the last state
+    last_state_clk = current_state_clk
+
+    # Small delay to debounce
+time.sleep(0.01)
+    
