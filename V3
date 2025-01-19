@@ -1,0 +1,158 @@
+import time
+import board
+import digitalio
+from digitalio import DigitalInOut, Direction, Pull
+import analogio
+import pwmio
+import rotaryio
+import usb_hid
+from adafruit_hid.keyboard import Keyboard
+from adafruit_hid.keycode import Keycode
+from adafruit_hid.consumer_control import ConsumerControl
+# from adafruit_hid.consumer_control_code import ConsumerControlCode
+
+print("---Pico Pad Keyboard---")
+kbd = Keyboard(usb_hid.devices)
+encoderPins = (
+    board.A2, # CLK
+    board.A1, # DT
+    board.A0, # SW
+)
+
+LEDs = []
+ledPins = (
+    board.GP0,
+    board.GP1,
+    board.GP2,
+    board.GP3,
+    board.GP4,
+    board.GP5,
+)
+keycode_list = [
+    Keycode.A, Keycode.B, Keycode.C, Keycode.D, Keycode.E, Keycode.F,
+    Keycode.G, Keycode.H, Keycode.I, Keycode.J, Keycode.K, Keycode.L,
+    Keycode.M, Keycode.N, Keycode.O, Keycode.P, Keycode.Q, Keycode.R,
+    Keycode.S, Keycode.T, Keycode.U, Keycode.V, Keycode.W, Keycode.X,
+    Keycode.Z, Keycode.Y  # y and z switched cause of calcs in encoder change
+]
+
+    
+
+
+
+
+def initialize_LEDs():
+    """Initialize the LEDs once."""
+    for pin in ledPins:
+        led = DigitalInOut(pin)
+        led.direction = Direction.INPUT
+        LEDs.append(led)
+
+def reset_LEDs():
+    """Reset all LEDs to input mode."""
+    for led in LEDs:
+        if led.direction == Direction.OUTPUT:
+            led.value = False 
+            led.direction = Direction.INPUT
+
+def set_LED(low, high):
+    reset_LEDs()  
+    LEDs[low].direction = Direction.OUTPUT
+    LEDs[low].value = 0
+    LEDs[high].direction = Direction.OUTPUT
+    LEDs[high].value = 1
+
+def activate_single_LED(num):
+    num = int(num)
+    if num == 0 or num > 26:
+        print("Pick a number between 1 and 26 to activate a LED")
+    else:
+        
+        low = 0
+        high = 1
+        if num != 1:
+            for i in range(num -1):
+                high_old = high
+                high = low
+                low = high_old
+                
+                if i % 2 != 0:
+                    if high == 5:
+                        low += 1
+                        high = low +1
+                    else:
+                        high += 1
+                
+    #print(str(low)+ " "  + str(high))
+    set_LED(low,high)
+
+
+
+clk = digitalio.DigitalInOut(encoderPins[0]) 
+dt = digitalio.DigitalInOut(encoderPins[1])
+button = digitalio.DigitalInOut(encoderPins[2])
+clk.direction = digitalio.Direction.INPUT
+dt.direction = digitalio.Direction.INPUT
+button.direction = digitalio.Direction.INPUT
+clk.pull = digitalio.Pull.UP
+dt.pull = digitalio.Pull.UP
+button.pull = digitalio.Pull.UP
+
+last_state_clk = clk.value
+counter = 1
+debounce_threshold = 2
+currentLedNumber = 1
+last_button_state = button.value
+
+def encoder_change():
+    global last_state_clk, counter, currentLedNumber  # Declare as global to modify these variables
+    current_state_clk = clk.value
+
+    # Check if the state has changed
+    if current_state_clk != last_state_clk:
+        # If CLK has changed, check the state of DT
+        if dt.value != current_state_clk:
+            # If DT is different from CLK, it's a clockwise turn
+            if counter < 52:
+                counter += 1
+        else:
+            # If DT is the same as CLK, it's a counter-clockwise turn
+            if counter > 1:
+                counter -= 1
+
+        print(counter)
+        
+        if counter % 2 == 0:
+            currentLedNumber = counter/2
+        else:
+            currentLedNumber = (counter +1)/2
+          # Call this after updating the counter
+
+    # Update the last state
+    last_state_clk = current_state_clk
+
+
+def check_button():
+    global last_button_state
+    current_button_state = button.value
+
+    # Check for a button press (transition from high to low)
+    if last_button_state and not current_button_state:
+        if 1 <= currentLedNumber <= 26:
+            kbd.press(keycode_list[int(currentLedNumber) - 1])
+            time.sleep(0.5)  # Short delay to simulate key press
+            kbd.release(keycode_list[int(currentLedNumber) - 1])
+# SETUP
+initialize_LEDs()
+
+while True:
+    encoder_change()
+    activate_single_LED(currentLedNumber)
+    check_button()
+    
+    time.sleep(0.01)
+    # Small delay to debounce
+
+
+    
+
