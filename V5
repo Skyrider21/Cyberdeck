@@ -69,9 +69,13 @@ keycode_actionButtons = [
     [Keycode.W, Keycode.ENTER],  # w + ENTER
     [Keycode.E, Keycode.ENTER],  # e + ENTER
     [Keycode.I, Keycode.ENTER],  # i + ENTER
-    [Keycode.T],                 # take
-    [Keycode.D],                 # drop
-    [Keycode.U]                  # use
+    [Keycode.T, Keycode.A, Keycode.K, Keycode.E, Keycode.SPACE],        # take
+    [Keycode.D,Keycode.R, Keycode.O, Keycode.P, Keycode.SPACE],         # drop
+    [Keycode.U, Keycode.S, Keycode.E , Keycode.SPACE],                  # use
+    [Keycode.SPACE],					# SPACE
+    [Keycode.ENTER],					# ENTER
+    [Keycode.BACKSPACE],				# BACKSPACE
+    
 ]
 
 def initialize_actionButtons():
